@@ -7,6 +7,6 @@ install:
   - go get github.com/tools/godep
   - godep restore
 
-script:
-  - go test
-  - test -z "$(go fmt ./...)"
+#script:
+#  - go test
+#  - test -z "$(go fmt ./...)"
