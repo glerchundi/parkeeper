@@ -1,5 +1,4 @@
-# parkeeper
-============
+# parkeeper [![Build Status](https://travis-ci.org/glerchundi/parkeeper.svg?branch=master)](https://travis-ci.org/glerchundi/parkeeper) [![Docker Repository on Quay.io](https://quay.io/repository/glerchundi/parkeeper/status "Docker Repository on Quay.io")](https://quay.io/repository/glerchundi/parkeeper)
 
 One service discovery backend to rule them all. The idea behind this was to seamlessly use tools and frameworks that heavily rely on zookeeper, for example, [finagle](https://twitter.github.io/finagle/), [kafka](http://kafka.apache.org/), and keep/support/maintain just one key-value store. This could facilitate the migration to the nextgen service discovery/distributed configuration services like [etcd](https://github.com/coreos/etcd) or [consul](http://consul.io).
 
