@@ -23,7 +23,7 @@ Here is a list of supported request with some notes:
 |              | etcd               | consul             |
 | ------------ |:------------------:|:------------------:|
 | CREATE       | :white_check_mark: <sup>1</sup> | :white_check_mark: |
-| DELETE       | :white_check_mark: | :white_check_mark: |
+| DELETE       | :white_check_mark: | :white_check_mark: <sup>2</sup>  |
 | EXISTS       | :white_check_mark: | :white_check_mark: |
 | GETDATA      | :white_check_mark: | :white_check_mark: |
 | SETDATA      | :white_check_mark: | :white_check_mark: |
@@ -32,15 +32,17 @@ Here is a list of supported request with some notes:
 | GETCHILDREN  | :white_check_mark: | :white_check_mark: |
 | SYNC         | :question: | :question: |
 | PING         | :white_check_mark: | :white_check_mark: |
-| GETCHILDREN2 | :white_check_mark: |  |
+| GETCHILDREN2 | :white_check_mark: | :white_check_mark: |
 | CHECK        | :question: | :question: |
 | MULTI        | :construction: | :construction: |
-| CREATE2      | :white_check_mark:<sup>1</sup> |  |
+| CREATE2      | :white_check_mark:<sup>1</sup> | :white_check_mark: |
 | CLOSE        | :white_check_mark: | :white_check_mark: |
 | SETAUTH      | :construction: | :construction: |
 | SETWATCHES   | :construction: | :construction: |
 
 <sup>1</sup> Unable to create a node with a key/path equal to an existing directory.
+
+<sup>2</sup> Cannot delete a node with a specific version: https://github.com/hashicorp/consul/issues/348.
 
 Using parkeeper is as easy as this:
 
