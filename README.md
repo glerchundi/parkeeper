@@ -7,14 +7,14 @@ One of these two backends are available:
 * consul
 
 Unsupported ZooKeeper features:
+- [ ] Reliable zxid (X-Consul-Index & X-Etcd-Index)
+- [ ] Watches
 - [ ] Ephemeral Nodes
 - [ ] Sequence Nodes
-- [ ] Reliable zxid (?)
-- [ ] Reliable Stats (?)
-- [ ] Process requests in batch (Multi)
-- [ ] Watches
 - [ ] ACLs
 - [ ] Auth
+- [ ] Process requests in batch (Multi)
+- [ ] Reliable Stats (?)
 
 So ... is there something supported?
 
