@@ -40,7 +40,7 @@ Here is a list of supported request with some notes:
 | SETAUTH      | :construction: | :construction: |
 | SETWATCHES   | :construction: | :construction: |
 
-<sup>1</sup> Unable to create a node with a key/path equal to an existing directory.
+<sup>1</sup> Unable to create a node with a key/path equal to an existing directory. (please support this feature request in order to have full etcd support: [#1855](https://github.com/coreos/etcd/issues/1855))
 
 <sup>2</sup> Cannot delete a node with a specific version: https://github.com/hashicorp/consul/issues/348.
 
