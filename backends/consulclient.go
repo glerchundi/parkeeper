@@ -1,7 +1,10 @@
 package backends
 
 import (
+	"net"
+	"net/http"
 	"strings"
+	"time"
 
 	"github.com/armon/consul-api"
 )
@@ -12,12 +15,19 @@ type ConsulClient struct {
 	kv     *consulapi.KV
 }
 
-func NewConsulClient(addr string) (*ConsulClient, error) {
+func NewConsulClient(addr string, dialTimeout time.Duration) (*ConsulClient, error) {
 	var c *consulapi.Client
 
 	// configure address (and scheme if necessary)
 	cfg := consulapi.DefaultConfig()
 	cfg.Address = addr
+	cfg.HttpClient = &http.Client {
+		Transport: &http.Transport {
+			Dial: func(network, addr string) (net.Conn, error) {
+				return net.DialTimeout(network, addr, dialTimeout)
+			},
+		},
+	}
 
 	// create custom client
 	c, err := consulapi.NewClient(cfg)

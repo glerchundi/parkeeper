@@ -45,7 +45,7 @@ func NewLogger(quiet bool, verbose bool, debug bool) *Log {
 // Debug logs a message with severity DEBUG.
 func (l *Log) Debug(v ...interface{}) {
 	if l.debug {
-		l.write("DEBUG", v)
+		l.write("DEBUG", v...)
 	}
 }
 
@@ -55,50 +55,50 @@ func Debug(v ...interface{}) {
 
 // Error logs a message with severity ERROR.
 func (l *Log) Error(v ...interface{}) {
-	l.write("ERROR", v)
+	l.write("ERROR", v...)
 }
 
 func Error(v ...interface{}) {
-	globalLogger.Error(v)
+	globalLogger.Error(v...)
 }
 
 // Fatal logs a message with severity ERROR followed by a call to os.Exit().
 func (l *Log) Fatal(v ...interface{}) {
-	l.write("ERROR", v)
+	l.write("ERROR", v...)
 	os.Exit(1)
 }
 
 func Fatal(v ...interface{}) {
-	globalLogger.Fatal(v)
+	globalLogger.Fatal(v...)
 }
 
 // Info logs a message with severity INFO.
 func (l *Log) Info(v ...interface{}) {
-	l.write("INFO", v)
+	l.write("INFO", v...)
 }
 
 func Info(v ...interface{}) {
-	globalLogger.Info(v)
+	globalLogger.Info(v...)
 }
 
 // Notice logs a message with severity NOTICE.
 func (l *Log) Notice(v ...interface{}) {
 	if l.verbose || l.debug {
-		l.write("NOTICE", v)
+		l.write("NOTICE", v...)
 	}
 }
 
 func Notice(v ...interface{}) {
-	globalLogger.Notice(v)
+	globalLogger.Notice(v...)
 }
 
 // Warning logs a message with severity WARNING.
 func (l *Log) Warning(v ...interface{}) {
-	l.write("WARNING", v)
+	l.write("WARNING", v...)
 }
 
 func Warning(v ...interface{}) {
-	globalLogger.Warning(v)
+	globalLogger.Warning(v...)
 }
 
 // write writes error messages to stderr and all others to stdout.

@@ -1,17 +1,18 @@
 package keeper
 
 import (
+	"errors"
 	"io"
 	"net"
 	"time"
 	"fmt"
 	"sync"
-	"errors"
 	"encoding/binary"
 
 	"github.com/glerchundi/parkeeper/backends"
 	"github.com/glerchundi/parkeeper/log"
 
+	"gopkg.in/tomb.v2"
 )
 
 const (
@@ -25,8 +26,13 @@ var bufferPool = sync.Pool {
 type Keeper struct {
 	conn             net.Conn
 	storeClient      backends.Client
-	gracefullyClosed bool
 	temp             []byte
+
+	tomb             *tomb.Tomb
+
+	recvChan         chan []byte
+	sendChan         chan Rep
+	processorChan    chan func()error
 }
 
 //
@@ -37,116 +43,95 @@ func NewKeeper(conn net.Conn, c backends.Client) *Keeper {
 	return &Keeper {
 		conn:             conn,
 		storeClient:      c,
-		gracefullyClosed: false,
 		temp:             make([]byte, 4),
+
+		tomb:             new(tomb.Tomb),
+
+		recvChan:         make(chan []byte, 16),
+		sendChan:         make(chan Rep, 16),
+		processorChan:    make(chan func()error, 16),
 	}
 }
 
-func (k *Keeper) Handle() {
-	ch := make(chan error)
-	f := func() {
-		defer func() {
-			if err := recover(); err != nil {
-				ch <- errors.New("unexpected error")
-			}
-		}()
+func (k *Keeper) Handle()error {
+	// always close connection
+	defer k.Close()
 
-		err := k.processFrame(func(buf []byte) {
-			req := &ConnectReq {}
-			_, err := DecodePacket(buf, req)
-			if (err != nil) {
-				ch <- err
-				return
-			}
+	// launch frame receiver/sender
+	k.trackedLoop(k.recvLoop)
+	k.trackedLoop(k.sendLoop)
 
-			// create connection reply
-			rep := &ConnectRep {
-				ProtocolVersion: req.ProtocolVersion,
-				TimeOut: req.TimeOut,
-				SessionId: 1,
-				Passwd: req.Passwd,
-			}
-
-			// write connection reply
-			k.writeRep(rep)
-
-			// signal as successful
-			ch <- nil
-		})
-
-		if (err != nil) {
-			ch <- err
-		}
-	}
-
+	// loop until connect request was received or a timeout reached
 	timeout := time.After(30 * time.Second)
-	for !k.IsClosed() {
-		go f()
+	select {
+	case buf := <-k.recvChan:
+		// try parsing connect request
+		req := &ConnectReq {}
+		_, err := DecodePacket(buf, req)
+		if (err != nil) {
+			k.tomb.Kill(err)
+		}
+
+		// create connection reply
+		rep := &ConnectRep {
+			ProtocolVersion: req.ProtocolVersion,
+			TimeOut: req.TimeOut,
+			SessionId: 1,
+			Passwd: req.Passwd,
+		}
+
+		// write connection reply
+		k.sendChan <- rep
+
+		// start loops
+		k.trackedLoop(k.requestLoop)
+		k.trackedLoop(k.processorLoop)
+	case <-k.tomb.Dead():
+	case <-timeout:
+		k.tomb.Kill(errors.New(fmt.Sprintf("connect wasn't received in %d", timeout)))
+	}
+
+	// main loop
+	for {
 		select {
-		case err := <- ch:
-			if (err != nil) {
-				break
-			}
-			k.loop()
-		case <-timeout:
-			k.Close()
+		case <-k.tomb.Dying():
+			// causes recv loop to EOF/exit
+			k.conn.Close()
+		case <-k.tomb.Dead():
+			return nil
 		}
 	}
+
+	return nil
 }
 
 func (k *Keeper) IsClosed() bool {
 	/*
 	c := k.conn
 	c.SetReadDeadline(time.Now())
-	if _, err := c.Read(k.temp[:1]); err == io.EOF {
+	if _, err := c.Read(k.temp[:1]); err == io.xEOF {
 		log.Debug(fmt.Sprintf("%s detected closed LAN connection"))
 	  	c.Close()
 		c = nil
 	} else {
 		c.SetReadDeadline(time.Time{})
 	}
-  */
-	return k.gracefullyClosed
+    */
+	return false
 }
 
 func (k *Keeper) Close() {
-	log.Info("closing connection...")
-	defer k.conn.Close()
-	k.gracefullyClosed = true
+	k.conn.Close()
+	k.tomb.Kill(nil)
+	err := k.tomb.Wait()
+	if (err != nil) {
+		log.Debug("closed due to: ", err)
+	}
 }
 
 //
 // PRIVATE
 //
-
-var processorByOpCode = map[int32]func(OpReq,backends.Client)*OpRep {
-	opCreate: func (opReq OpReq, c backends.Client) *OpRep { return processCreateReq(opReq, c) },
-	opDelete: func (opReq OpReq, c backends.Client) *OpRep { return processDeleteReq(opReq, c) },
-	opExists: func (opReq OpReq, c backends.Client) *OpRep { return processExistsReq(opReq, c) },
-	opGetData: func (opReq OpReq, c backends.Client) *OpRep { return processGetDataReq(opReq, c) },
-	opSetData: func (opReq OpReq, c backends.Client) *OpRep { return processSetDataReq(opReq, c) },
-	opGetAcl: func (opReq OpReq, c backends.Client) *OpRep { return processGetAclReq(opReq) },
-	opSetAcl: func (opReq OpReq, c backends.Client) *OpRep { return processSetAclReq(opReq) },
-	opGetChildren: func (opReq OpReq, c backends.Client) *OpRep { return processGetChildrenReq(opReq, c) },
-	opSync: func (opReq OpReq, c backends.Client) *OpRep { return processSyncReq(opReq) },
-	opPing: func (opReq OpReq, c backends.Client) *OpRep { return processPingReq(opReq) },
-	opGetChildren2: func (opReq OpReq, c backends.Client) *OpRep { return processGetChildren2Req(opReq, c) },
-	opCheck: func (opReq OpReq, c backends.Client) *OpRep { return processCheckVersionReq(opReq) },
-	opMulti: func (opReq OpReq, c backends.Client) *OpRep { return processMultiReq(opReq) },
-	opCreate2: func (opReq OpReq, c backends.Client) *OpRep { return processCreate2Req(opReq, c) },
-	opClose: func (opReq OpReq, c backends.Client) *OpRep { return processCloseReq(opReq) },
-	opSetAuth: func (opReq OpReq, c backends.Client) *OpRep { return processSetAuthReq(opReq) },
-	opSetWatches: func (opReq OpReq, c backends.Client) *OpRep { return processSetWatchesReq(opReq) },
-}
-
-var keeperErrFromBackendErr = map[int]int32 {
-	backends.Unknown:            errSystemError,
-	backends.Unimplemented:      errUnimplemented,
-	backends.BackendUnreachable: errSystemError,
-	backends.KeyNotFound:        errNoNode,
-	backends.KeyExists:          errNodeExists,
-	backends.BadVersion:         errBadVersion,
-}
 
 func (k *Keeper) read(buf []byte) (n int, err error) {
 	n, err = io.ReadFull(k.conn, buf)
@@ -160,58 +145,6 @@ func (k *Keeper) read(buf []byte) (n int, err error) {
 	return
 }
 
-func (k *Keeper) processFrame(f func([]byte)) (err error) {
-	var buf []byte = nil
-	defer func() { k.free(buf) }()
-
-	_, err = k.read(k.temp[:4])
-	if (err != nil) {
-		return err
-	}
-
-	// parse frame size
-	len := binary.BigEndian.Uint32(k.temp[:4])
-
-	// alloc buffer (freeing if full read from conn wasn't possible)
-	buf = k.alloc()
-	_, err = k.read(buf[:len])
-	if (err != nil) {
-		return err
-	}
-
-	// log input
-	log.Debug("<-", fmt.Sprintf("%x%x", k.temp[:4], buf[:len]))
-
-	// process frame
-	f(buf[:len])
-
-	return nil
-}
-
-func (k *Keeper) writeRep(rep interface{}) (err error) {
-	var buf []byte = k.alloc()
-	defer func() { k.free(buf) }()
-
-	bytesWritten, err := EncodePacket(buf[4:], rep)
-	if (err != nil) {
-		return err
-	}
-
-	// write frame size
-	binary.BigEndian.PutUint32(buf[:4], uint32(bytesWritten))
-
-	// write buffer to connection
-	_, err = k.conn.Write(buf[:4+bytesWritten])
-	if err != nil {
-		return err
-	}
-
-	// log output
-	log.Debug("->", fmt.Sprintf("%x", buf[:4+bytesWritten]))
-
-	return nil
-}
-
 func (k *Keeper) alloc() []byte {
 	return bufferPool.Get().([]byte)
 }
@@ -222,15 +155,87 @@ func (k *Keeper) free(buf []byte) {
 	}
 }
 
-func (k *Keeper) loop() {
-	defer func() {
-		if err := recover(); err != nil {
-			log.Debug(fmt.Sprintf("%s", err))
-		}
-	}()
+func (k *Keeper) trackedLoop(f func(*tomb.Tomb)error) {
+	k.tomb.Go(func() error { return f(k.tomb) })
+}
 
+func (k *Keeper) recvLoop(t *tomb.Tomb) error {
 	for {
-		err := k.processFrame(func (buf []byte) {
+		_, err := k.read(k.temp[:4])
+		if (err != nil) {
+			return err
+		}
+
+		// parse frame size
+		len := binary.BigEndian.Uint32(k.temp[:4])
+		if (len > bufferSize) {
+			return errors.New(fmt.Sprintf("length should be at most %d bytes (received %d)", bufferSize, len))
+		}
+
+		// alloc buffer (freeing if full read from conn wasn't possible)
+		var buf = k.alloc()
+		defer k.free(buf)
+
+		// read frame
+		_, err = k.read(buf[:len])
+		if (err != nil) {
+			return err
+		}
+
+		// log input
+		log.Debug("<- ", fmt.Sprintf("%x%x", k.temp[:4], buf[:len]))
+
+		// send frame to channel
+		select {
+		case k.recvChan <- buf[:len]:
+		case <-t.Dying():
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func (k *Keeper) sendLoop(t *tomb.Tomb) error {
+	var timeout <-chan time.Time = nil
+	for {
+		select {
+		case rep := <-k.sendChan:
+			var buf []byte = k.alloc()
+			defer k.free(buf)
+
+			bytesWritten, err := EncodePacket(buf[4:], rep)
+			if (err != nil) {
+				return err
+			}
+
+			// write frame size
+			binary.BigEndian.PutUint32(buf[:4], uint32(bytesWritten))
+
+			// write buffer to connection
+			_, err = k.conn.Write(buf[:4+bytesWritten])
+			if err != nil {
+				return err
+			}
+
+			// log output
+			log.Debug("-> ", fmt.Sprintf("%x", buf[:4+bytesWritten]))
+		case <-t.Dying():
+			// create a timeout in order to send pending requests (close reply)
+			if (timeout == nil) {
+				timeout = time.After(100 * time.Millisecond)
+			}
+		case <-timeout:
+			close(k.sendChan)
+			return nil
+		}
+	}
+}
+
+func (k *Keeper) requestLoop(t *tomb.Tomb) error {
+	for {
+		select {
+		case buf := <-k.recvChan:
 			// current & total bytes read
 			bytesRead := 0
 			totalBytesRead := 0
@@ -238,302 +243,53 @@ func (k *Keeper) loop() {
 			// parse request header
 			reqHdr := &OpReqHeader{}
 			bytesRead, err := DecodePacket(buf, reqHdr)
-			totalBytesRead = totalBytesRead + bytesRead
+			totalBytesRead = totalBytesRead+bytesRead
 			if (err != nil) {
 				log.Error(fmt.Sprintf("unable to decode request header: %s", err.Error()))
-				return
+				return err
 			}
 
 			// create request
 			creator, found := creatorByOpCode[reqHdr.OpCode]
 			if !found {
 				log.Error(fmt.Sprintf("cannot create opcode: %d", reqHdr.OpCode))
-				return
+				return err
 			}
 
 			// parse request
 			req := creator()
 			bytesRead, err = DecodePacket(buf[bytesRead:], req)
-			totalBytesRead = totalBytesRead + bytesRead
+			totalBytesRead = totalBytesRead+bytesRead
 			if (err != nil) {
 				log.Error(fmt.Sprintf("unable to decode request: %s", err.Error()))
-				return
+				return err
 			}
 
-			// find processor
-			processor, found := processorByOpCode[reqHdr.OpCode]
-			if !found {
-				log.Error(fmt.Sprintf("cannot process opcode: %d", reqHdr.OpCode))
-				return
-			}
-
-			// process request & write rep (if needed)
-			rep := processor(OpReq{ Hdr: reqHdr, Req: req }, k.storeClient)
-			if (rep != nil) {
-				if err := k.writeRep(rep); err != nil {
-					log.Error(fmt.Sprintf("cannot write response: %s", err.Error()))
+			// queue processor
+			k.processorChan <- func()error {
+				processOpReq(OpReq{ Hdr: reqHdr, Req: req }, k.storeClient, k.sendChan)
+				if (reqHdr.OpCode == opClose) {
+					return errors.New("graceful connection close requested")
 				}
+				return nil
 			}
-		})
-
-		if (err != nil) {
-			log.Debug(err.Error())
-			return
+		case <-t.Dying():
+			close(k.recvChan)
+			return nil
 		}
 	}
 }
 
-func mapBackendError(err *backends.Error) int32 {
-	errCode := err.Code()
-	keeperErr, found := keeperErrFromBackendErr[errCode]
-	if !found {
-		log.Error(fmt.Sprintf("unexpected client error: ", errCode))
-		return errSystemError
+func (k *Keeper) processorLoop(t *tomb.Tomb) error {
+	for {
+		select {
+		case f := <- k.processorChan:
+			if err := f(); err != nil {
+				return err
+			}
+		case <-t.Dying():
+			close(k.processorChan)
+			return nil
+		}
 	}
-
-	return keeperErr
-}
-
-func newRep(xid int32, zxid int64, err int32, rep interface{}) *OpRep {
-	return &OpRep {
-		Hdr: &OpRepHeader{ Xid: xid, Zxid: zxid, Err: err },
-		Rep: rep,
-	}
-}
-
-func newErrorRep(xid int32, zxid int64, err int32) *OpRep {
-	var empty struct{}
-	return newRep(xid, zxid, err, empty)
-}
-
-func newBackendErrorRep(xid int32, zxid int64, err *backends.Error) *OpRep {
-	return newErrorRep(xid, zxid, mapBackendError(err))
-}
-
-func newErrorRepIfInvalidPath(xid int32, zxid int64, path *Path) *OpRep {
-	if (!path.IsValid()) {
-		return newErrorRep(xid, zxid, errBadArguments)
-	}
-	return nil
-}
-
-func newStat(createdIndex uint64, modifiedIndex uint64, dataLength int) Stat {
-	return Stat {
-		CreatedZxid: int64(createdIndex),
-		ModifiedZxid: int64(modifiedIndex),
-		CreatedTime: 0,
-		ModifiedTime: 0,
-		Version: int32(modifiedIndex),
-		ChildrenVersion: 0,
-		AclVersion: 0,
-		EphemeralOwner: 0,
-		DataLength: int32(dataLength),
-		NumChildren: 0,
-		Pzxid: 0,
-	}
-}
-
-func processCreateReq(opReq OpReq, c backends.Client) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*CreateReq)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	err := c.Create(req.Path.Value, string(req.Data))
-	if (err != nil) {
-		return newBackendErrorRep(xid, 0, err)
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&CreateRep { Path: req.Path.Value },
-	)
-}
-
-func processDeleteReq(opReq OpReq, c backends.Client) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*DeleteReq)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	err := c.Delete(req.Path.Value, req.Version)
-	if (err != nil) {
-		return newBackendErrorRep(xid, 0, err)
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&DeleteRep {},
-	)
-}
-
-func processExistsReq(opReq OpReq, c backends.Client) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*ExistsReq)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	err := c.Exists(req.Path.Value)
-	if (err != nil) {
-		return newBackendErrorRep(xid, 0, err)
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&ExistsRep { Stat: newStat(0, 0, 0) },
-	)
-}
-
-func processGetDataReq(opReq OpReq, c backends.Client) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*GetDataReq)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	node, err := c.GetData(req.Path.Value)
-	if (err != nil) {
-		return newBackendErrorRep(xid, 0, err)
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&GetDataRep {
-			Data: []byte(node.Value),
-			Stat: newStat(node.CreatedIndex, node.ModifiedIndex, len(node.Value)),
-		},
-	)
-}
-
-func processSetDataReq(opReq OpReq, c backends.Client) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*SetDataReq)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	err := c.SetData(req.Path.Value, string(req.Data), req.Version)
-	if (err != nil) {
-		return newBackendErrorRep(xid, 0, err)
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&SetDataRep { Stat: newStat(0, 0, 0) },
-	)
-}
-
-func processGetAclReq(opReq OpReq) *OpRep {
-	return newErrorRep(opReq.Hdr.Xid, 0, errUnimplemented)
-}
-
-func processSetAclReq(opReq OpReq) *OpRep {
-	return newErrorRep(opReq.Hdr.Xid, 0, errUnimplemented)
-}
-
-func processGetChildrenReq(opReq OpReq, c backends.Client) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*GetChildrenReq)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	children, err := c.GetChildren(req.Path.Value)
-	if (err != nil) {
-		return newBackendErrorRep(xid, 0, err)
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&GetChildrenRep { Children: children },
-	)
-}
-
-func processSyncReq(opReq OpReq) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*SyncReq)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&SyncRep { Path: req.Path.Value },
-	)
-}
-
-func processPingReq(OpReq) *OpRep {
-	return newRep(
-		-2, 0, errOk,
-		&PingRep {},
-	)
-}
-
-func processGetChildren2Req(opReq OpReq, c backends.Client) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*GetChildren2Req)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	children, err := c.GetChildren(req.Path.Value)
-	if (err != nil) {
-		return newBackendErrorRep(xid, 0, err)
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&GetChildren2Rep {
-			Children: children,
-			Stat: newStat(0, 0, 0),
-		},
-	)
-}
-
-func processCheckVersionReq(OpReq) *OpRep {
-	return nil
-}
-
-func processMultiReq(opReq OpReq) *OpRep {
-	return newErrorRep(opReq.Hdr.Xid, 0, errUnimplemented)
-}
-
-func processCreate2Req(opReq OpReq, c backends.Client) *OpRep {
-	xid := opReq.Hdr.Xid
-	req := opReq.Req.(*Create2Req)
-	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
-		return err
-	}
-
-	err := c.Create(req.Path.Value, string(req.Data))
-	if (err != nil) {
-		return newBackendErrorRep(xid, 0, err)
-	}
-
-	return newRep(
-		xid, 0, errOk,
-		&Create2Rep {
-			Path: req.Path.Value,
-			Stat: newStat(0, 0, 0),
-		},
-	)
-}
-
-func processCloseReq(opReq OpReq) *OpRep {
-	xid := opReq.Hdr.Xid
-	return newRep(
-		xid, 0, errOk,
-		&CloseRep {},
-	)
-}
-
-func processSetAuthReq(opReq OpReq) *OpRep {
-	return newErrorRep(opReq.Hdr.Xid, 0, errUnimplemented)
-}
-
-func processSetWatchesReq(opReq OpReq) *OpRep {
-	return newErrorRep(opReq.Hdr.Xid, 0, errUnimplemented)
 }

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 	"strconv"
+	"time"
 )
 
 const (
@@ -86,13 +87,14 @@ func NewClient(backendUrl string) (Client, error) {
 
 	// create and return backend client
 	var addr string = u.Host
+	var dialTimeout time.Duration = time.Duration(3) * time.Second
 	switch strings.ToLower(u.Scheme) {
 	case "etcd":
 		addr = NormalizeAddress(addr, uint16(4001))
-		return NewEtcdClient(addr)
+		return NewEtcdClient(addr, dialTimeout)
 	case "consul":
 		addr = NormalizeAddress(addr, uint16(8500))
-		return NewConsulClient(addr)
+		return NewConsulClient(addr, dialTimeout)
 	}
 
 	// return constructed client

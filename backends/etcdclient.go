@@ -16,7 +16,7 @@ type EtcdClient struct {
 	client *etcd.Client
 }
 
-func NewEtcdClient(addr string) (*EtcdClient, error) {
+func NewEtcdClient(addr string, dialTimeout time.Duration) (*EtcdClient, error) {
 	var c *etcd.Client
 	/*
 		var err error
@@ -39,8 +39,8 @@ func NewEtcdClient(addr string) (*EtcdClient, error) {
 		return nil, errors.New("cannot connect to etcd cluster: " + addr)
 	}
 
-	// Configure the DialTimeout, since 1 second is often too short
-	c.SetDialTimeout(time.Duration(3) * time.Second)
+	// configure dial timeout
+	c.SetDialTimeout(dialTimeout)
 
 	return &EtcdClient { addr: addr, client: c }, nil
 }

@@ -31,15 +31,11 @@ func NewServer(addr string, storeClient backends.Client) *Server {
 		ch:          make(chan bool),
 		waitGroup:   &sync.WaitGroup{},
 	}
-	server.waitGroup.Add(1)
 	return server
 }
 
 
 func (s *Server) Start() {
-
-	// Listen on 127.0.0.1:48879.  That's my favorite port number because in
-	// hex 48879 is 0xBEEF.
 	laddr, err := net.ResolveTCPAddr("tcp", s.addr)
 	if nil != err {
 		log.Fatal(err)
@@ -48,7 +44,7 @@ func (s *Server) Start() {
 	if nil != err {
 		log.Fatal(err)
 	}
-	log.Debug("listening on", listener.Addr())
+	log.Debug("listening on: ", listener.Addr())
 
 	// Make a new service and send it into the background.
 	go s.serve(listener)
@@ -75,10 +71,11 @@ func (s *Server) Stop() {
 
 func (s *Server) serve(l *net.TCPListener) {
 	defer s.waitGroup.Done()
+	s.waitGroup.Add(1)
 	for {
 		select {
-		case <-s.ch:
-			log.Debug("stopping listening on", l.Addr())
+		case <- s.ch:
+			log.Debug("stopping listening on: ", l.Addr())
 			l.Close()
 			return
 		default:
@@ -86,18 +83,26 @@ func (s *Server) serve(l *net.TCPListener) {
 
 		l.SetDeadline(time.Now().Add(1e9))
 		conn, err := l.AcceptTCP()
-		if nil != err {
+		if err != nil  {
 			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 				continue
 			}
 			log.Debug(err)
 		}
-		log.Debug(conn.RemoteAddr(), "connected")
-		s.waitGroup.Add(1)
 
 		// handle the connection in a new goroutine. This returns to listener
 		// accepting code so that multiple connections may be served concurrently.
 		keeper := NewKeeper(conn, s.storeClient)
-		go keeper.Handle()
+
+		go func() {
+			defer s.waitGroup.Done()
+			s.waitGroup.Add(1)
+			log.Debug("client connected: ", conn.RemoteAddr())
+			if err := keeper.Handle(); err != nil {
+				log.Debug("client disconnected: ", conn.RemoteAddr(), " with error: ", err)
+			} else {
+				log.Debug("client disconnected: ", conn.RemoteAddr())
+			}
+		}()
 	}
 }
