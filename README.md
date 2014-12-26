@@ -6,7 +6,7 @@ One of these two backends are available:
 * etcd
 * consul
 
-Unsupported ZooKeeper features:
+Unsupported ZooKeeper features (ordered by priority):
 - [ ] Reliable zxid (X-Consul-Index & X-Etcd-Index)
 - [ ] Watches
 - [ ] Ephemeral Nodes
@@ -16,9 +16,7 @@ Unsupported ZooKeeper features:
 - [ ] Process requests in batch (Multi)
 - [ ] Reliable Stats (?)
 
-So ... is there something supported?
-
-Here is a list of supported request with some notes:
+Listing of supported requests with some notes:
 
 |              | etcd               | consul             |
 | ------------ |:------------------:|:------------------:|
@@ -30,19 +28,21 @@ Here is a list of supported request with some notes:
 | GETACL       | :construction: | :construction: |
 | SETACL       | :construction: | :construction: |
 | GETCHILDREN  | :white_check_mark: | :white_check_mark: |
-| SYNC         | :question: | :question: |
+| SYNC         | :white_check_mark: <sup>3</sup> | :white_check_mark: <sup>3</sup> |
 | PING         | :white_check_mark: | :white_check_mark: |
 | GETCHILDREN2 | :white_check_mark: | :white_check_mark: |
-| CHECK        | :question: | :question: |
+| CHECK        | :white_check_mark: | :white_check_mark: |
 | MULTI        | :construction: | :construction: |
 | CREATE2      | :white_check_mark:<sup>1</sup> | :white_check_mark: |
 | CLOSE        | :white_check_mark: | :white_check_mark: |
 | SETAUTH      | :construction: | :construction: |
 | SETWATCHES   | :construction: | :construction: |
 
-<sup>1</sup> Unable to create a node with a key/path equal to an existing directory. (please support this feature request in order to have full etcd support: [#1855](https://github.com/coreos/etcd/issues/1855))
+<sup>1</sup> Unable to create a node with a key/path equal to an existing directory. (etcd will support this in v3 api: [#1855](https://github.com/coreos/etcd/issues/1855))
 
 <sup>2</sup> Cannot delete a node with a specific version: https://github.com/hashicorp/consul/issues/348.
+
+<sup>3</sup> There is no similar etcd/consul request. For now, it does not proceed.
 
 Using parkeeper is as easy as this:
 
