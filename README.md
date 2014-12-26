@@ -47,8 +47,8 @@ Listing of supported requests with some notes:
 Using parkeeper is as easy as this:
 
 ```bash
-docker run -p 2181:2181 glerchundi/parkeeper -backend-url etcd://127.0.0.1:4001
-docker run -p 2181:2181 glerchundi/parkeeper -backend-url consul://127.0.0.1:8500
+docker run -p 2181:2181 quay.io/glerchundi/parkeeper -backend-url etcd://127.0.0.1:4001
+docker run -p 2181:2181 quay.io/glerchundi/parkeeper -backend-url consul://127.0.0.1:8500
 ```
 
 This project is in its early stages, use at your own risk. And of course, any feedback is appreciated as well as issues!
