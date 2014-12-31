@@ -32,7 +32,7 @@ func appMain(c *cli.Context) {
 func main() {
 	app := cli.NewApp()
 	app.Name = "parkeeper"
-	app.Version = Version
+	app.Version = releaseVersion
 	app.Usage = "acts as a zookeeper service bridging all requests to etcd/consul"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
