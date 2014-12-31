@@ -37,7 +37,7 @@ func main() {
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "bind-addr",
-			Value: "127.0.0.1:2181",
+			Value: "0.0.0.0:2181",
 			Usage: "bind this server to a custom internal address",
 		},
 		cli.StringFlag{
