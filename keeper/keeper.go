@@ -62,7 +62,7 @@ func (k *Keeper) Handle()error {
 	k.trackedLoop(k.sendLoop)
 
 	// loop until connect request was received or a timeout reached
-	timeout := time.After(30 * time.Second)
+	connectTimeout := time.After(30 * time.Second)
 	select {
 	case buf := <-k.recvChan:
 		// try parsing connect request
@@ -87,8 +87,8 @@ func (k *Keeper) Handle()error {
 		k.trackedLoop(k.requestLoop)
 		k.trackedLoop(k.processorLoop)
 	case <-k.tomb.Dead():
-	case <-timeout:
-		k.tomb.Kill(errors.New(fmt.Sprintf("connect wasn't received in %d", timeout)))
+	case <-connectTimeout:
+		k.tomb.Kill(errors.New(fmt.Sprintf("connect wasn't received in %d", connectTimeout)))
 	}
 
 	// main loop
