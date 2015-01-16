@@ -1,11 +1,7 @@
 {
 	"ImportPath": "github.com/glerchundi/parkeeper",
-	"GoVersion": "go1.3.3",
+	"GoVersion": "go1.4",
 	"Deps": [
-		{
-			"ImportPath": "github.com/armon/consul-api",
-			"Rev": "1b81c8e0c4cbf1d382310e4c0dc11221632e79d1"
-		},
 		{
 			"ImportPath": "github.com/codegangsta/cli",
 			"Comment": "1.2.0-26-gf7ebb76",
@@ -15,6 +11,11 @@
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
 			"Comment": "v0.2.0-rc1-127-g6fe04d5",
 			"Rev": "6fe04d580dfb71c9e34cbce2f4df9eefd1e1241e"
+		},
+		{
+			"ImportPath": "github.com/hashicorp/consul/api",
+			"Comment": "v0.4.1-434-g36f9924",
+			"Rev": "36f9924e51d9982c771de1cfd140ce7dd43e2087"
 		},
 		{
 			"ImportPath": "gopkg.in/tomb.v2",

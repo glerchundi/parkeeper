@@ -6,20 +6,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armon/consul-api"
+	api "github.com/hashicorp/consul/api"
 )
 
 type ConsulClient struct {
 	addr   string
-	client *consulapi.Client
-	kv     *consulapi.KV
+	client *api.Client
+	kv     *api.KV
 }
 
 func NewConsulClient(addr string, dialTimeout time.Duration) (*ConsulClient, error) {
-	var c *consulapi.Client
+	var c *api.Client
 
 	// configure address (and scheme if necessary)
-	cfg := consulapi.DefaultConfig()
+	cfg := api.DefaultConfig()
 	cfg.Address = addr
 	cfg.HttpClient = &http.Client {
 		Transport: &http.Transport {
@@ -30,7 +30,7 @@ func NewConsulClient(addr string, dialTimeout time.Duration) (*ConsulClient, err
 	}
 
 	// create custom client
-	c, err := consulapi.NewClient(cfg)
+	c, err := api.NewClient(cfg)
 	if (err != nil) {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (c *ConsulClient) GetChildren(path string) ([]string, *Error) {
 	return children, nil
 }
 
-func (c *ConsulClient) get(path string, q *consulapi.QueryOptions) (*consulapi.KVPair, *consulapi.QueryMeta, *Error) {
+func (c *ConsulClient) get(path string, q *api.QueryOptions) (*api.KVPair, *api.QueryMeta, *Error) {
 	kv, qm, err := c.kv.Get(keyFromPath(path), nil)
 	if (err != nil) {
 		return nil, qm, &Error { errCode: BackendUnreachable }
@@ -130,7 +130,7 @@ func (c *ConsulClient) get(path string, q *consulapi.QueryOptions) (*consulapi.K
 }
 
 func (c *ConsulClient) cas(path, data string, modifyIndex uint64) *Error {
-	kv := &consulapi.KVPair {
+	kv := &api.KVPair {
 		Key: keyFromPath(path),
 		Value: []byte(data),
 		ModifyIndex: modifyIndex,
@@ -157,7 +157,7 @@ func keyFromPath(path string) string {
 	return strings.TrimPrefix(path, "/")
 }
 
-func mapFromKV(kv *consulapi.KVPair) *Node {
+func mapFromKV(kv *api.KVPair) *Node {
 	return &Node {
 		Path:          kv.Key,
 		Value:         string(kv.Value),
