@@ -21,14 +21,14 @@ Listing of supported requests with some notes:
 |              | etcd               | consul             |
 | ------------ |:------------------:|:------------------:|
 | CREATE       | :white_check_mark: <sup>1</sup> | :white_check_mark: |
-| DELETE       | :white_check_mark: | :white_check_mark: <sup>2</sup>  |
+| DELETE       | :white_check_mark: | :white_check_mark: |
 | EXISTS       | :white_check_mark: | :white_check_mark: |
 | GETDATA      | :white_check_mark: | :white_check_mark: |
 | SETDATA      | :white_check_mark: | :white_check_mark: |
 | GETACL       | :construction: | :construction: |
 | SETACL       | :construction: | :construction: |
 | GETCHILDREN  | :white_check_mark: | :white_check_mark: |
-| SYNC         | :white_check_mark: <sup>3</sup> | :white_check_mark: <sup>3</sup> |
+| SYNC         | :white_check_mark: <sup23</sup> | :white_check_mark: <sup>2</sup> |
 | PING         | :white_check_mark: | :white_check_mark: |
 | GETCHILDREN2 | :white_check_mark: | :white_check_mark: |
 | CHECK        | :white_check_mark: | :white_check_mark: |
@@ -40,9 +40,7 @@ Listing of supported requests with some notes:
 
 <sup>1</sup> Unable to create a node with a key/path equal to an existing directory. (etcd will support this in v3 api: [#1855](https://github.com/coreos/etcd/issues/1855))
 
-<sup>2</sup> Cannot delete a node with a specific version: https://github.com/hashicorp/consul/issues/348.
-
-<sup>3</sup> There is no similar etcd/consul request. For now, it does not proceed.
+<sup>2</sup> There is no similar etcd/consul request. For now, it does not proceed.
 
 Using parkeeper is as easy as this:
 
