@@ -7,17 +7,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coreos/go-etcd/etcd"
+	api "github.com/coreos/go-etcd/etcd"
 	"github.com/glerchundi/parkeeper/log"
 )
 
 type EtcdClient struct {
 	addr   string
-	client *etcd.Client
+	client *api.Client
 }
 
 func NewEtcdClient(addr string, dialTimeout time.Duration) (*EtcdClient, error) {
-	var c *etcd.Client
+	var c *api.Client
 	/*
 		var err error
 		if cert != "" && key != "" {
@@ -34,7 +34,7 @@ func NewEtcdClient(addr string, dialTimeout time.Duration) (*EtcdClient, error) 
 	machines := []string{addr}
 
 	// create custom client
-	c = etcd.NewClient(machines)
+	c = api.NewClient(machines)
 	if !c.SetCluster(machines) {
 		return nil, errors.New("cannot connect to etcd cluster: " + addr)
 	}
@@ -46,14 +46,14 @@ func NewEtcdClient(addr string, dialTimeout time.Duration) (*EtcdClient, error) 
 }
 
 func (c *EtcdClient) Create(path string, data string) (err *Error) {
-	_, err = rawCall(func() (*etcd.RawResponse, error) {
+	_, err = rawCall(func() (*api.RawResponse, error) {
 		return c.client.RawCreate(path, data, 0)
 	}, nil)
 	return
 }
 
 func (c *EtcdClient) Delete(path string, version int32) (err *Error) {
-	_, err = rawCall(func() (*etcd.RawResponse, error) {
+	_, err = rawCall(func() (*api.RawResponse, error) {
 		if (version == -1) {
 			return c.client.RawDelete(path, false, false)
 		} else {
@@ -64,7 +64,7 @@ func (c *EtcdClient) Delete(path string, version int32) (err *Error) {
 }
 
 func (c *EtcdClient) Exists(path string) (err *Error) {
-	_, err = rawCall(func() (*etcd.RawResponse, error) {
+	_, err = rawCall(func() (*api.RawResponse, error) {
 		return c.client.RawGet(path, true, false)
 	}, nil)
 	return
@@ -72,10 +72,10 @@ func (c *EtcdClient) Exists(path string) (err *Error) {
 
 func (c *EtcdClient) GetData(path string) (*Node, *Error) {
 	return rawCall(
-		func() (*etcd.RawResponse, error) {
+		func() (*api.RawResponse, error) {
 			return c.client.RawGet(path, true, false)
 		},
-		func(resp *etcd.Response) *Error {
+		func(resp *api.Response) *Error {
 			if (resp.Node.Dir) {
 				return &Error { errCode: KeyNotFound }
 			}
@@ -85,7 +85,7 @@ func (c *EtcdClient) GetData(path string) (*Node, *Error) {
 }
 
 func (c *EtcdClient) SetData(path string, data string, version int32) (err *Error) {
-	_, err = rawCall(func() (*etcd.RawResponse, error) {
+	_, err = rawCall(func() (*api.RawResponse, error) {
 		if (version == -1) {
 			return c.client.RawUpdate(path, data, 0)
 		} else {
@@ -96,7 +96,7 @@ func (c *EtcdClient) SetData(path string, data string, version int32) (err *Erro
 }
 
 func (c *EtcdClient) GetChildren(path string) ([]string, *Error) {
-	node, err := rawCall(func() (*etcd.RawResponse, error) {
+	node, err := rawCall(func() (*api.RawResponse, error) {
 		return c.client.RawGet(path, true, false)
 	}, nil)
 	if (err != nil) {
@@ -112,7 +112,7 @@ func (c *EtcdClient) GetChildren(path string) ([]string, *Error) {
 	return children, nil
 }
 
-func mapNode(etcdNode *etcd.Node) *Node {
+func mapNode(etcdNode *api.Node) *Node {
 	node := &Node{
 		Path:          etcdNode.Key,
 		Value:         etcdNode.Value,
@@ -128,14 +128,14 @@ func mapNode(etcdNode *etcd.Node) *Node {
 	return node
 }
 
-func rawCall(f func() (*etcd.RawResponse, error), v func(*etcd.Response) *Error) (*Node, *Error) {
+func rawCall(f func() (*api.RawResponse, error), v func(*api.Response) *Error) (*Node, *Error) {
 	rawResp, cerr := f()
 	if cerr != nil {
 		return nil, &Error { errCode: BackendUnreachable, errMsg: cerr.Error() }
 	}
 
 	if rawResp.StatusCode != http.StatusOK && rawResp.StatusCode != http.StatusCreated {
-		etcdError := new(etcd.EtcdError)
+		etcdError := new(api.EtcdError)
 		json.Unmarshal(rawResp.Body, etcdError)
 
 		var errCode int = Unknown
