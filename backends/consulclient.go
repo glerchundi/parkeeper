@@ -43,10 +43,25 @@ func (c *ConsulClient) Create(path string, data string) *Error {
 }
 
 func (c *ConsulClient) Delete(path string, version int32) *Error {
-	// cas? for DELETE: https://github.com/hashicorp/consul/issues/348
-	_, err := c.kv.Delete(path, nil)
-	if (err != nil) {
-		return &Error { errCode: BackendUnreachable }
+	if (version == -1) {
+		_, err := c.kv.Delete(path, nil)
+		if (err != nil) {
+			return &Error { errCode: BackendUnreachable }
+		}
+	} else {
+		kv := &api.KVPair {
+			Key: keyFromPath(path),
+			ModifyIndex: uint64(version),
+		}
+
+		wasOk, _, err := c.kv.DeleteCAS(kv, nil)
+		if (err != nil) {
+			return &Error { errCode: BackendUnreachable }
+		}
+
+		if (!wasOk) {
+			return &Error { errCode: BadVersion }
+		}
 	}
 
 	return nil
@@ -75,8 +90,6 @@ func (c *ConsulClient) SetData(path string, data string, version int32) *Error {
 	if (err != nil) {
 		return err
 	}
-
-	//log.Debug(fmt.Sprintf("SetData: version: %d", version))
 
 	modifyIndex := uint64(version)
 	if (version == -1) {
