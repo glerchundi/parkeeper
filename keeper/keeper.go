@@ -12,7 +12,7 @@ import (
 	"github.com/glerchundi/parkeeper/backends"
 	"github.com/glerchundi/parkeeper/log"
 
-	"gopkg.in/tomb.v2"
+	tomb "gopkg.in/tomb.v2"
 )
 
 const (
