@@ -3,74 +3,74 @@ package keeper
 import (
 	"fmt"
 
-	"github.com/glerchundi/parkeeper/backends"
+	kv "github.com/glerchundi/kvstores"
 	"github.com/glerchundi/parkeeper/log"
 )
 
-var processorByOpCode = map[int32]func(OpReq,backends.Client)*OpRep {
-	opCreate: func (opReq OpReq, client backends.Client) *OpRep {
+var processorByOpCode = map[int32]func(OpReq, kv.Client)*OpRep {
+	opCreate: func (opReq OpReq, client kv.Client) *OpRep {
 		return processCreateReq(opReq, client)
 	},
-	opDelete: func (opReq OpReq, client backends.Client) *OpRep {
+	opDelete: func (opReq OpReq, client kv.Client) *OpRep {
 		return processDeleteReq(opReq, client)
 	},
-	opExists: func (opReq OpReq, client backends.Client) *OpRep {
+	opExists: func (opReq OpReq, client kv.Client) *OpRep {
 		return processExistsReq(opReq, client)
 	},
-	opGetData: func (opReq OpReq, client backends.Client) *OpRep {
+	opGetData: func (opReq OpReq, client kv.Client) *OpRep {
 		return processGetDataReq(opReq, client)
 	},
-	opSetData: func (opReq OpReq, client backends.Client) *OpRep {
+	opSetData: func (opReq OpReq, client kv.Client) *OpRep {
 		return processSetDataReq(opReq, client)
 	},
-	opGetAcl: func (opReq OpReq, _ backends.Client) *OpRep {
+	opGetAcl: func (opReq OpReq, _ kv.Client) *OpRep {
 		return processGetAclReq(opReq)
 	},
-	opSetAcl: func (opReq OpReq, _ backends.Client) *OpRep {
+	opSetAcl: func (opReq OpReq, _ kv.Client) *OpRep {
 		return processSetAclReq(opReq)
 	},
-	opGetChildren: func (opReq OpReq, client backends.Client) *OpRep {
+	opGetChildren: func (opReq OpReq, client kv.Client) *OpRep {
 		return processGetChildrenReq(opReq, client)
 	},
-	opSync: func (opReq OpReq, _ backends.Client) *OpRep {
+	opSync: func (opReq OpReq, _ kv.Client) *OpRep {
 		return processSyncReq(opReq)
 	},
-	opPing: func (opReq OpReq, _ backends.Client) *OpRep {
+	opPing: func (opReq OpReq, _ kv.Client) *OpRep {
 		return processPingReq(opReq)
 	},
-	opGetChildren2: func (opReq OpReq, client backends.Client) *OpRep {
+	opGetChildren2: func (opReq OpReq, client kv.Client) *OpRep {
 		return processGetChildren2Req(opReq, client)
 	},
-	opCheck: func (opReq OpReq, client backends.Client) *OpRep {
+	opCheck: func (opReq OpReq, client kv.Client) *OpRep {
 		return processCheckVersionReq(opReq, client)
 	},
-	opMulti: func (opReq OpReq, _ backends.Client) *OpRep {
+	opMulti: func (opReq OpReq, _ kv.Client) *OpRep {
 		return processMultiReq(opReq)
 	},
-	opCreate2: func (opReq OpReq, client backends.Client) *OpRep {
+	opCreate2: func (opReq OpReq, client kv.Client) *OpRep {
 		return processCreate2Req(opReq, client)
 	},
-	opClose: func (opReq OpReq, _ backends.Client) *OpRep {
+	opClose: func (opReq OpReq, _ kv.Client) *OpRep {
 		return processCloseReq(opReq)
 	},
-	opSetAuth: func (opReq OpReq, _ backends.Client) *OpRep {
+	opSetAuth: func (opReq OpReq, _ kv.Client) *OpRep {
 		return processSetAuthReq(opReq)
 	},
-	opSetWatches: func (opReq OpReq, _ backends.Client) *OpRep {
+	opSetWatches: func (opReq OpReq, _ kv.Client) *OpRep {
 		return processSetWatchesReq(opReq)
 	},
 }
 
 var keeperErrFromBackendErr = map[int]int32 {
-	backends.Unknown:            errSystemError,
-	backends.Unimplemented:      errUnimplemented,
-	backends.BackendUnreachable: errSystemError,
-	backends.KeyNotFound:        errNoNode,
-	backends.KeyExists:          errNodeExists,
-	backends.BadVersion:         errBadVersion,
+	kv.Unknown:            errSystemError,
+	kv.Unimplemented:      errUnimplemented,
+	kv.BackendUnreachable: errSystemError,
+	kv.KeyNotFound:        errNoNode,
+	kv.KeyExists:          errNodeExists,
+	kv.BadVersion:         errBadVersion,
 }
 
-func mapBackendError(err *backends.Error) int32 {
+func mapBackendError(err *kv.Error) int32 {
 	errCode := err.Code()
 	keeperErr, found := keeperErrFromBackendErr[errCode]
 	if !found {
@@ -93,7 +93,7 @@ func newErrorRep(xid int32, zxid int64, err int32) *OpRep {
 	return newRep(xid, zxid, err, empty)
 }
 
-func newBackendErrorRep(xid int32, zxid int64, err *backends.Error) *OpRep {
+func newBackendErrorRep(xid int32, zxid int64, err *kv.Error) *OpRep {
 	return newErrorRep(xid, zxid, mapBackendError(err))
 }
 
@@ -120,7 +120,7 @@ func newStat(createdIndex uint64, modifiedIndex uint64, dataLength int) Stat {
 	}
 }
 
-func processOpReq(opReq OpReq, storeClient backends.Client, sendChan chan Rep) {
+func processOpReq(opReq OpReq, storeClient kv.Client, sendChan chan Rep) {
 	// find processor
 	processor, found := processorByOpCode[opReq.Hdr.OpCode]
 	if !found {
@@ -135,7 +135,7 @@ func processOpReq(opReq OpReq, storeClient backends.Client, sendChan chan Rep) {
 	}
 }
 
-func processCreateReq(opReq OpReq, client backends.Client) *OpRep {
+func processCreateReq(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*CreateReq)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
@@ -153,7 +153,7 @@ func processCreateReq(opReq OpReq, client backends.Client) *OpRep {
 	)
 }
 
-func processDeleteReq(opReq OpReq, client backends.Client) *OpRep {
+func processDeleteReq(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*DeleteReq)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
@@ -171,7 +171,7 @@ func processDeleteReq(opReq OpReq, client backends.Client) *OpRep {
 	)
 }
 
-func processExistsReq(opReq OpReq, client backends.Client) *OpRep {
+func processExistsReq(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*ExistsReq)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
@@ -189,7 +189,7 @@ func processExistsReq(opReq OpReq, client backends.Client) *OpRep {
 	)
 }
 
-func processGetDataReq(opReq OpReq, client backends.Client) *OpRep {
+func processGetDataReq(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*GetDataReq)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
@@ -210,7 +210,7 @@ func processGetDataReq(opReq OpReq, client backends.Client) *OpRep {
 	)
 }
 
-func processSetDataReq(opReq OpReq, client backends.Client) *OpRep {
+func processSetDataReq(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*SetDataReq)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
@@ -236,7 +236,7 @@ func processSetAclReq(opReq OpReq) *OpRep {
 	return newErrorRep(opReq.Hdr.Xid, 0, errUnimplemented)
 }
 
-func processGetChildrenReq(opReq OpReq, client backends.Client) *OpRep {
+func processGetChildrenReq(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*GetChildrenReq)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
@@ -274,7 +274,7 @@ func processPingReq(OpReq) *OpRep {
 	)
 }
 
-func processGetChildren2Req(opReq OpReq, client backends.Client) *OpRep {
+func processGetChildren2Req(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*GetChildren2Req)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
@@ -295,7 +295,7 @@ func processGetChildren2Req(opReq OpReq, client backends.Client) *OpRep {
 	)
 }
 
-func processCheckVersionReq(opReq OpReq, client backends.Client) *OpRep {
+func processCheckVersionReq(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*CheckVersionReq)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {
@@ -321,7 +321,7 @@ func processMultiReq(opReq OpReq) *OpRep {
 	return newErrorRep(opReq.Hdr.Xid, 0, errUnimplemented)
 }
 
-func processCreate2Req(opReq OpReq, client backends.Client) *OpRep {
+func processCreate2Req(opReq OpReq, client kv.Client) *OpRep {
 	xid := opReq.Hdr.Xid
 	req := opReq.Req.(*Create2Req)
 	if err := newErrorRepIfInvalidPath(xid, 0, req.Path); err != nil {

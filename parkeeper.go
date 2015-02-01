@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/glerchundi/parkeeper/backends"
+	kv "github.com/glerchundi/kvstores"
 	"github.com/glerchundi/parkeeper/keeper"
 	"github.com/glerchundi/parkeeper/log"
 
@@ -19,7 +19,7 @@ func appMain(c *cli.Context) {
 	log.SetLogger(log.NewLogger(false, true, true))
 
 	// backend client
-	storeClient, err := backends.NewClient(backendUrl)
+	storeClient, err := kv.NewClient(backendUrl)
 	if err != nil {
 		panic(err)
 	}
@@ -32,7 +32,7 @@ func appMain(c *cli.Context) {
 func main() {
 	app := cli.NewApp()
 	app.Name = "parkeeper"
-	app.Version = releaseVersion
+	app.Version = "0.3.0"
 	app.Usage = "acts as a zookeeper service bridging all requests to etcd/consul"
 	app.Flags = []cli.Flag{
 		cli.StringFlag{

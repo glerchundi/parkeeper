@@ -8,13 +8,13 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/glerchundi/parkeeper/backends"
+	kv "github.com/glerchundi/kvstores"
 	"github.com/glerchundi/parkeeper/log"
 )
 
 type Server struct {
 	addr        string
-	storeClient backends.Client
+	storeClient kv.Client
 	// stop gracefully without interrupting anyone
 	ch          chan bool
 	waitGroup   *sync.WaitGroup
@@ -24,7 +24,7 @@ type Server struct {
 // PUBLIC
 //
 
-func NewServer(addr string, storeClient backends.Client) *Server {
+func NewServer(addr string, storeClient kv.Client) *Server {
 	server := &Server{
 		addr:        addr,
 		storeClient: storeClient,

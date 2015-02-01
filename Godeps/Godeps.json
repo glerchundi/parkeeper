@@ -13,6 +13,10 @@
 			"Rev": "6fe04d580dfb71c9e34cbce2f4df9eefd1e1241e"
 		},
 		{
+			"ImportPath": "github.com/glerchundi/kvstores",
+			"Rev": "89586e50b85bd0d1e9890fe33d2b5476a7296ce7"
+		},
+		{
 			"ImportPath": "github.com/hashicorp/consul/api",
 			"Comment": "v0.4.1-434-g36f9924",
 			"Rev": "36f9924e51d9982c771de1cfd140ce7dd43e2087"

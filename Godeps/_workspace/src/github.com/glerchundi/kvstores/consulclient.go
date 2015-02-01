@@ -1,4 +1,4 @@
-package backends
+package kvstores
 
 import (
 	"net"
@@ -43,24 +43,25 @@ func (c *ConsulClient) Create(path string, data string) *Error {
 }
 
 func (c *ConsulClient) Delete(path string, version int32) *Error {
+	key := keyFromPath(path)
 	if (version == -1) {
-		_, err := c.kv.Delete(path, nil)
+		_, err := c.kv.Delete(key, nil)
 		if (err != nil) {
-			return &Error { errCode: BackendUnreachable }
+			return &Error { code: BackendUnreachable }
 		}
 	} else {
 		kv := &api.KVPair {
-			Key: keyFromPath(path),
+			Key: key,
 			ModifyIndex: uint64(version),
 		}
 
 		wasOk, _, err := c.kv.DeleteCAS(kv, nil)
 		if (err != nil) {
-			return &Error { errCode: BackendUnreachable }
+			return &Error { code: BackendUnreachable }
 		}
 
 		if (!wasOk) {
-			return &Error { errCode: BadVersion }
+			return &Error { code: BadVersion }
 		}
 	}
 
@@ -103,7 +104,7 @@ func (c *ConsulClient) GetChildren(path string) ([]string, *Error) {
 	keyPath := keyFromPath(path) + "/"
 	kvs, _, err := c.kv.Keys(keyPath, "/", nil)
 	if (err != nil) {
-		return nil, &Error { errCode: BackendUnreachable }
+		return nil, &Error { code: BackendUnreachable }
 	}
 
 	// clean up keys
@@ -132,11 +133,11 @@ func (c *ConsulClient) GetChildren(path string) ([]string, *Error) {
 func (c *ConsulClient) get(path string, q *api.QueryOptions) (*api.KVPair, *api.QueryMeta, *Error) {
 	kv, qm, err := c.kv.Get(keyFromPath(path), nil)
 	if (err != nil) {
-		return nil, qm, &Error { errCode: BackendUnreachable }
+		return nil, qm, &Error { code: BackendUnreachable }
 	}
 
 	if (kv == nil) {
-		return nil, qm, &Error { errCode: KeyNotFound }
+		return nil, qm, &Error { code: KeyNotFound }
 	}
 
 	return kv, qm, nil
@@ -152,14 +153,14 @@ func (c *ConsulClient) cas(path, data string, modifyIndex uint64) *Error {
 	wasOk, _, err := c.kv.CAS(kv, nil)
 	if (err != nil) {
 		//log.Debug(err.Error())
-		return &Error { errCode: BackendUnreachable }
+		return &Error { code: BackendUnreachable }
 	}
 
 	if (!wasOk) {
 		if (modifyIndex == 0) {
-			return &Error { errCode: BadVersion }
+			return &Error { code: BadVersion }
 		} else {
-			return &Error { errCode: KeyExists }
+			return &Error { code: KeyExists }
 		}
 	}
 

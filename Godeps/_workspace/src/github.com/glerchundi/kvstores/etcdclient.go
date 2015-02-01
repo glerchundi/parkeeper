@@ -1,14 +1,13 @@
-package backends
+package kvstores
 
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log"
 	"net/http"
 	"time"
 
 	api "github.com/coreos/go-etcd/etcd"
-	"github.com/glerchundi/parkeeper/log"
 )
 
 type EtcdClient struct {
@@ -77,7 +76,7 @@ func (c *EtcdClient) GetData(path string) (*Node, *Error) {
 		},
 		func(resp *api.Response) *Error {
 			if (resp.Node.Dir) {
-				return &Error { errCode: KeyNotFound }
+				return &Error { code: KeyNotFound }
 			}
 			return nil
 		},
@@ -131,36 +130,36 @@ func mapNode(etcdNode *api.Node) *Node {
 func rawCall(f func() (*api.RawResponse, error), v func(*api.Response) *Error) (*Node, *Error) {
 	rawResp, cerr := f()
 	if cerr != nil {
-		return nil, &Error { errCode: BackendUnreachable, errMsg: cerr.Error() }
+		return nil, &Error { code: BackendUnreachable, msg: cerr.Error() }
 	}
 
 	if rawResp.StatusCode != http.StatusOK && rawResp.StatusCode != http.StatusCreated {
 		etcdError := new(api.EtcdError)
 		json.Unmarshal(rawResp.Body, etcdError)
 
-		var errCode int = Unknown
+		var code int = Unknown
 		switch etcdError.ErrorCode {
 		case 100: // EcodeKeyNotFound
-			errCode = KeyNotFound
+			code = KeyNotFound
 		case 101: // EcodeTestFailed
-			errCode = BadVersion
+			code = BadVersion
 		case 102: // EcodeNotFile
-			errCode = KeyNotFound
+			code = KeyNotFound
 		case 105: // EcodeNodeExist
-			errCode = KeyExists
+			code = KeyExists
 		case 107: // EcodeRootROnly
 			// TODO: Decide which error should be triggered
-			errCode = KeyNotFound
+			code = KeyNotFound
 		default:
-			log.Error(fmt.Sprintf("unhandled error: http: %d, etcd: %d", rawResp.StatusCode, etcdError.ErrorCode ))
+			log.Printf("unhandled error: http: %d, etcd: %d", rawResp.StatusCode, etcdError.ErrorCode)
 		}
 
-		return nil, &Error { errCode: errCode }
+		return nil, &Error { code: code }
 	}
 
 	resp, cerr := rawResp.Unmarshal()
 	if cerr != nil {
-		return nil, &Error { errCode: Unknown }
+		return nil, &Error { code: Unknown }
 	}
 
 	if (v != nil) {

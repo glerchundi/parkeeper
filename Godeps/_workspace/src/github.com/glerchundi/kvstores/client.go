@@ -1,4 +1,4 @@
-package backends
+package kvstores
 
 import (
 	"errors"
@@ -28,25 +28,25 @@ var errCodeToErrMsg = map[int]string {
 }
 
 type Error struct {
-	errCode int
-	errMsg  string
+	code int
+	msg  string
 }
 
 func (e *Error) Code() int {
-	return e.errCode
+	return e.code
 }
 
-func (e *Error) Error() string {
-	if (e.errMsg != "") {
-		return e.errMsg
+func (e *Error) String() string {
+	if (e.msg != "") {
+		return e.msg
 	}
 
-	msg, found := errCodeToErrMsg[e.errCode]
-	if (!found) {
-		return "unable to identify error"
+	msg, found := errCodeToErrMsg[e.code]
+	if (found) {
+		return msg
 	}
 
-	return msg
+	return errCodeToErrMsg[Unknown]
 }
 
 type Node struct {

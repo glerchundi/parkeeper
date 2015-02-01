@@ -9,7 +9,7 @@ import (
 	"sync"
 	"encoding/binary"
 
-	"github.com/glerchundi/parkeeper/backends"
+	kv "github.com/glerchundi/kvstores"
 	"github.com/glerchundi/parkeeper/log"
 
 	tomb "gopkg.in/tomb.v2"
@@ -25,7 +25,7 @@ var bufferPool = sync.Pool {
 
 type Keeper struct {
 	conn             net.Conn
-	storeClient      backends.Client
+	storeClient      kv.Client
 	temp             []byte
 
 	tomb             *tomb.Tomb
@@ -39,7 +39,7 @@ type Keeper struct {
 // PUBLIC
 //
 
-func NewKeeper(conn net.Conn, c backends.Client) *Keeper {
+func NewKeeper(conn net.Conn, c kv.Client) *Keeper {
 	return &Keeper {
 		conn:             conn,
 		storeClient:      c,
