@@ -159,7 +159,8 @@ type ConnectReq struct {
 	TimeOut         int32
 	SessionId       int64
 	Passwd          []byte
-	ReadOnly        bool
+	// https://github.com/glerchundi/parkeeper/issues/2
+	//ReadOnly        bool
 }
 
 type ConnectRep struct {
